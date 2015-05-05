@@ -1,0 +1,76 @@
+#!/bin/bash
+set -eu
+
+usage() {
+	cat <<EOF
+Usage: ${0##*/} [{-n | --dry-run}] [CHANGESET]...
+Fetches Gerrit changesets into local branches.
+
+Changeset format:
+   CHANGE            the last patch set of the change
+   CHANGE/PATCHSET   specific patch set of the change
+   CHANGE/           all patch sets of the change
+
+Example:
+   # Fetch patch set 3 of change 5942 into local branch \`c/5942/3'.
+   ${0##*/} 5942/3
+
+Set \`REMOTE' environment variable to specify git remote ('origin' by default).
+EOF
+}
+
+REMOTE="${REMOTE:-origin}"
+DRY_RUN=0
+
+case "${1:-}" in
+	''|'-h'|'--help'|'-help') usage; exit;;
+	'-n'|'--dry-run') DRY_RUN=1; shift;;
+esac
+
+last2() {
+	echo -n "$1" | tail -c2
+}
+
+fetch() {
+	[ $DRY_RUN -eq 1 ] || git fetch "$REMOTE" $1
+}
+
+branch() {
+	if [ $DRY_RUN -eq 1 ]; then
+		echo "Would create branch $1"
+	else
+		git branch $1 FETCH_HEAD
+		echo "Created branch $1"
+	fi
+}
+
+while [ $# -gt 0 ]; do
+	CHANGESET="$1"
+	shift
+	CHANGE="${CHANGESET%/*}"
+
+	echo "$CHANGESET" | grep -qE '^[0-9]+(/([0-9]*))?$' || {
+		echo "Invalid argument: $CHANGESET" >&2
+		exit 1
+	}
+	if echo "$CHANGESET" | grep -q /; then
+		PATCHSET="${CHANGESET#*/}"
+		if [ -n "$PATCHSET" ]; then
+			# Specific patch set.
+			fetch refs/changes/$(last2 $CHANGE)/$CHANGESET
+			branch c/$CHANGESET
+			continue
+		fi
+		# All patch sets.
+		filter() { cat; }
+	else
+		# The last patch set.
+		filter() { tail -1; }
+	fi
+	git ls-remote "$REMOTE" | awk '/\/changes\// {print $2}' |
+		grep /$(last2 $CHANGE)/$CHANGE/ | filter |
+		while read REF; do
+			fetch $REF
+			branch $(echo $REF | sed 's:refs/changes/..:c:')
+		done
+done
