@@ -3,16 +3,22 @@ set -eu
 
 usage() {
 	cat <<EOF
-Usage: ${0##*/} [{-n | --dry-run}] [CHANGESET]...
+Usage: ${0##*/} [{-n | --dry-run}] CHANGESET...
+       ${0##*/} {-c | --checkout} CHANGESET
 Fetches Gerrit changesets into local branches.
+
+Options:
+   -n, --dry-run     Show the names of branches but do not create them.
+   -c, --checkout    Fetch a changeset and checkout newly created branch
+                     to the working tree.
 
 Changeset format:
    CHANGE            the last patch set of the change
    CHANGE/PATCHSET   specific patch set of the change
-   CHANGE/           all patch sets of the change
+   CHANGE/           all patch sets of the change (cannot be used with \`-c')
 
 Example:
-   # Fetch patch set 3 of change 5942 into local branch \`c/5942/3'.
+   # Fetch patch set 3 of change 5942 into local branch 'c/5942/3'.
    ${0##*/} 5942/3
 
 Set \`REMOTE' environment variable to specify git remote ('origin' by default).
@@ -21,38 +27,41 @@ EOF
 
 REMOTE="${REMOTE:-origin}"
 DRY_RUN=0
+CHECKOUT=0
 
 case "${1:-}" in
 	''|'-h'|'--help'|'-help') usage; exit;;
 	'-n'|'--dry-run') DRY_RUN=1; shift;;
+	'-c'|'--checkout') CHECKOUT=1; shift;;
 esac
 
-last2() {
-	echo -n "$1" | tail -c2
-}
-
-fetch() {
-	[ $DRY_RUN -eq 1 ] || git fetch "$REMOTE" $1
-}
+die() { echo "$@" >&2; exit 1; }
+last2() { echo -n "$1" | tail -c2; }
+fetch() { [ $DRY_RUN -eq 1 ] || git fetch "$REMOTE" $1; }
 
 branch() {
 	if [ $DRY_RUN -eq 1 ]; then
-		echo "Would create branch $1"
+		echo "Would create branch '$1'"
+	elif [ $CHECKOUT -eq 1 ]; then
+		git checkout -b $1 FETCH_HEAD
 	else
 		git branch $1 FETCH_HEAD
-		echo "Created branch $1"
+		echo "Created branch '$1'"
 	fi
 }
+
+if [ $CHECKOUT -eq 1 ]; then
+	[ $# -eq 1 -a "${1%/}" = "$1" ] ||
+		die 'Refusing to checkout multiple branches'
+fi
 
 while [ $# -gt 0 ]; do
 	CHANGESET="$1"
 	shift
 	CHANGE="${CHANGESET%/*}"
 
-	echo "$CHANGESET" | grep -qE '^[0-9]+(/([0-9]*))?$' || {
-		echo "Invalid argument: $CHANGESET" >&2
-		exit 1
-	}
+	echo "$CHANGESET" | grep -qE '^[0-9]+(/([0-9]*))?$' ||
+		die "Invalid argument: $CHANGESET"
 	if echo "$CHANGESET" | grep -q /; then
 		PATCHSET="${CHANGESET#*/}"
 		if [ -n "$PATCHSET" ]; then
