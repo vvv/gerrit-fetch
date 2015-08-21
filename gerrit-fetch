@@ -18,7 +18,7 @@ Options:
        Usual branch name format is "c/<change>/<patchset>".
        With '-m' option it will be "<prefix>.c/<change>/<patchset>".
        This lets you add mnemonics to otherwise opaque numerical ids.
-       ("What what the topic of c/7971/2? And c/7987/1?
+       ("What was the topic of c/7971/2? And of c/7987/1?
         I wish I remembered.")
 
    -c, --checkout
