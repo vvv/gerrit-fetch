@@ -106,7 +106,7 @@ while [ $# -gt 0 ]; do
 		filter() { tail -1; }
 	fi
 	git ls-remote "$REMOTE" | awk '/\/changes\// {print $2}' |
-		grep /$(last2 $CHANGE)/$CHANGE/ | filter |
+		grep /$(last2 $CHANGE)/$CHANGE/ | sort -t/ -k5 -n | filter |
 		while read REF; do
 			fetch $REF
 			branch $(echo $REF | sed 's:refs/changes/..:c:')
