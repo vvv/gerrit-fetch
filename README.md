@@ -1,5 +1,5 @@
 `gerrit-fetch` downloads specified changesets from Gerrit. This can be
-useful for doing offline code review without access to the Gerit web
+useful for doing offline code review without access to the Gerrit web
 interface, or comparing submitted changesets.
 
 Gerrit allows you to fetch individual changes into the git repository
